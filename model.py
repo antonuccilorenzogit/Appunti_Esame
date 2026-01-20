@@ -10,205 +10,230 @@ class Model:
         self._dict_nodi = {}
         self._lista_archi = []
 
-    #  def load_materiale_dao(self):
-    #           inizializza liste DAO= funzioni DAO
-    #
-    #   SE HANNO PARAMETRO FAI SOLO RETURN E LE CHIAMO NEL CONTROLLER
-
-    # CREO DIZIONARIO PER NODI.ID ---> OBJ
-    self._dict_nodi = {}
-    for node in self._lista_nodi:
-        self._dict_nodi[node.cromosoma] = node
-    #O in BuildGraf oppure in load_nodi dal DAO
 
 
-
-
+    #funzione per buildare il grafo
     def BuildGraf(self):
-        self._G.clear()
-        self._lista_nodi = []
-        self._lista_archi = []
+        self._lista_nodi = DAO.readNodi()
+        for node in self._lista_nodi:
+            self._dict_nodi[node.id] = node
+            self._graf.add_node(node)
 
-        #CREAZIONE NODI GRAFO
-        for node in self.lista_dao:
-            self._lista_nodi.append(node)
-        self._G.add_nodes_from(self._lista_nodi)
-
-
-
-
-        #CREAZIONE ARCHI GRAFO
-
-        #metodo1 (LAB13 geni)
-        #Il peso di ciascun arco dovrà essere calcolato come la somma algebrica della correlazione
-        #(tabella interazione, colonna correlazione), facendo attenzione a contare ogni coppia di geni una sola volta.
-        edges = {}
-        for id1, id2, peso in self._lista_edge_dao:
-            obj1 = self._dict_nodi[id1]
-            obj2 = self._dict_nodi[id2]
-
-            if (obj1, obj2) not in edges:
-                edges[( obj1, obj2)] = float(PESO)
-            else:
-                edges[(obj1, obj2 )] += float(PESO)
-
-        for k, v in edges.items():
-            self.lista_edges.append((k[0], k[1], v))
-        self.G.add_weighted_edges_from(self._edges)
+        self._lista_archi = DAO.readArchi(self._dict_nodi)
+        for u, v, peso in self._lista_archi:
+            self._graf.add_edge(u, v, weight=peso)
 
 
 
-
-        #Ultima Parte punto 1
-        #METODO1 LAB13 geni
-        # Alla pressione del bottone “Conta Archi” stampare il numero di archi il cui peso è <S, ed il numero di archi il cui peso è >S.
-        def count_edges(self, t):
-            count_bigger = 0
-            count_smaller = 0
-            for x in self.get_edges():            #self.G.edges(data=True) restituisce (n1,n2, dizionario['weight']= peso)
-                if x[2]['weight'] > t:
-                    count_bigger += 1
-                elif x[2]['weight'] < t:
-                    count_smaller += 1
-            return count_bigger, count_smaller
-
-        #i valori minimo e massimo dei pesi degli archi.
-        def get_min_weight(self):
-            return min([x[2]['weight'] for x in self.get_edges()])
-
-        def get_max_weight(self):
-            return max([x[2]['weight'] for x in self.get_edges()])
+    # funzione per cercare valore minimo e massimo dei pesi degli archi.
+    def getMaxWeight(self):
+        pesoMax = max(self._graf.edges(data=True), key=lambda edge: edge[2]['weight'])
+        return pesoMax[-1]['weight']
+    def getMinWeight(self):
+        pesoMin = min(self._graf.edges(data=True), key=lambda edge: edge[2]['weight'])
+        return pesoMin[-1]['weight']
 
 
-        #METODO 2 Itunes
-        #"""Restituisce la componente connessa di un nodo"""
-        def get_component(self, album):
-            """Restituisce la componente connessa di un album"""
-            if album not in self.G:
-                return []
-            return list(nx.node_connected_component(self.G, album))
 
-    #######################################################################################################################àà
-    #PUNTO 2
-    #METODO 1 LAB 13 (geni)
-    #metodo ricorsivo per cercare dato un grafo pesato, il cammino massimo passando solo per archi
-    #con peso > o < di una soglia partendo da un nodo a caso
-    def ricerca_cammino(self, soglia):
-        self.soluzione_best.clear()
+    #funzione che conta il numero di archi con peso > o < di una soglia
+    def count_edges_by_threshold(self, soglia):
+        num_minori = 0
+        num_maggiori = 0
+        for edge in self._lista_archi:
+            peso = edge[-1]
+            if peso < soglia:
+                num_minori += 1
+            elif peso > soglia:
+                num_maggiori += 1
+        return num_minori, num_maggiori
 
-        for n in self.lista_nodi():
-            partial = []
-            partial_edges = []
 
-            partial.append(n)
-            self.ricorsione(partial, partial_edges, soglia)
 
-        return self.soluzione_best
-
-    def ricorsione(self, partial_nodes, partial_edges, t):
-        n_last = partial_nodes[-1]
-
-        #cerco i vicini ammissibili dell'ultimo nodo cioe che rispettano i vincoli
-        neigh = self._get_admissible_neighbors(n_last, partial_edges, t)
-
-        # stop
-        if len(neigh) == 0:
-            weight_path = self.compute_weight_path(partial_edges)
-            weight_path_best = self.compute_weight_path(self.soluzione_best)
-            #PUOI ANCHE PASSARLO ALLA RICORSIONE COME PREDEFINITO E AGGIORNARLO OGNI VOLTA CHE SI SUPERA
-            if weight_path > weight_path_best:
-                self.soluzione_best = partial_edges[:]
-            return
-
-        for n in neigh:
-            print("...")
-            partial_nodes.append(n)
-            partial_edges.append((n_last, n, self.G.get_edge_data(n_last, n))) #self.G[n_last][n]['weight']
-            self.ricorsione(partial_nodes, partial_edges, soglia)
-            partial_nodes.pop()
-            partial_edges.pop()
-
-    def _get_admissible_neighbors(self, node, partial_edges, soglia):
-        result = []
-        for u, v, data in self.G.out_edges(node, data=True):
-            if data["weight"] > soglia:
-                # controllo SOLO l'arco diretto
-                if (u, v) not in [(x[0], x[1]) for x in partial_edges]:
-                    result.append(v)
-        return result
-
-    def compute_weight_path(self, mylist):
-        weight = 0
-        for e in mylist:
-            weight += e[2]['weight']
-        return weight
-
-    #METODO 2 Itunes
-    #Ricerca cammino con peso non superiore a peso soglia con maggiorn numero di nodi che siano connessi al nodo di partenza e lo icluda
-    """ def get_component(self, album):
-        if album not in self.G:
+    #funzione che restituisce una lista di nodi connessi con un nodo START
+    def get_component(self, start):
+        if start not in self._G:
             return []
-        return list(nx.node_connected_component(self.G, album))
-    """
+        return list(nx.node_connected_component(self._G, start))
 
-    def compute_best_set(self, start_album, max_duration):
-        """Ricerca ricorsiva del set massimo di album nella componente connessa"""
-        component = self.get_component(start_album)
-        self.soluzione_best = []
-        self._ricorsione(component, [start_album], start_album.duration, max_duration)
-        return self.soluzione_best
+    def get_connected_component(self, album_id):
+        album = self._node_dict[int(album_id)]
+        return nx.bfs_tree(self.G, album)
 
-    def _ricorsione(self, albums, current_set, current_duration, max_duration):
-        if len(current_set) > len(self.soluzione_best):
-            self.soluzione_best = current_set[:]### == copy.deepcopy(current_set)
 
-        for album in albums:
-            if album in current_set:
+
+    #funzione per calcolare peso di un percorso
+    def calcolaPeso(self, listaNodi):
+        pesoTotale = 0;
+        for i in range(0, len(listaNodi) - 1):
+            u = listaNodi[i]
+            v = listaNodi[i + 1]
+            pesoTotale += self._graf[u][v]["weight"]
+        return pesoTotale
+
+
+
+    #funzione per calcolare il peso di tutti gli archi tra un nodo e i suoi adiacenti
+    def get_peso_archi_adiacenti(self, node):
+        peso = 0
+        for vicino in self._G.neighbors(node):
+            peso += int(self._G[node][vicino]['weight'])
+        return peso
+
+
+    #funzione per calcolare la DISTANZA tra due nodi
+    def get_distance(self, nodo1, nodo2):
+        distanza = distance.geodesic((nodo1.lat, nodo1.lng), (nodo2.lat, nodo2.lng)).km
+        return distanza
+
+
+----------------------------------------------------------------------------------------------------------
+
+
+    #RICORSIONE per il cammino massimo passando solo per archi con peso > o < di una soglia partendo da un nodo a caso
+    def getPercorsoMassimo(self, soglia):
+        self._soluzioneMigliore = []  # Lista di nodi
+        self._pesoMigliore = 0
+
+        for v_iniziale in self._lista_nodi:
+            parziale = [v_iniziale]
+            self.ricorsione(parziale, soglia)
+
+        return self._soluzioneMigliore, self._pesoMigliore
+
+    def ricorsione(self, parziale, soglia):
+        # Qui ho una possibile soluzione
+        # Verifico se sia "migliore" della attuale migliore,
+        # ovvero se il suo peso sia maggiore del peso
+        # massimo finora trovato per le soluzioni precedenti
+        if self.calcolaPeso(parziale) > self._pesoMigliore:
+            self._pesoMigliore = self.calcolaPeso(parziale)
+            self._soluzioneMigliore = copy.deepcopy(parziale)
+            if len(parziale) == len(self._lista_nodi):
+                return
+
+        # Altrimenti qui faccio ricorsione
+        for v in self._graf.neighbors(parziale[-1]):  # Vicini dell'ultimo nodo aggiunto
+            if v in parziale:
                 continue
-            new_duration = current_duration + album.duration
-            if new_duration <= max_duration:
-                current_set.append(album)
-                self._ricorsione(albums, current_set, new_duration, max_duration)
-                current_set.pop()
+            if self._graf[parziale[-1]][v]['weight'] <= soglia:
+                continue
+            parziale.append(v)
+            self.ricorsione(parziale, soglia)
+            parziale.pop()
 
-    #METODO 3 BaseBall
-    #Metodo ricorsivo da un nodo di partenza per cercare il cammino di peso massimo che passi per nodi con peso strettamente decrescente:
-    #Per limitare i tempi di esecuzione, la procedura ricorsiva deve considerare solo i primi K archi
-    # adiacenti ordinati per peso decrescente (ad esempio K=3), cioè ogni vertice esplora al massimo i K vicini più pesanti che rispettano il vincolo decrescente.
 
-    def get_neighbors(self, team):
-        vicini = []
-        for n in self.G.neighbors(team):
-            w = self.G[team][n]["weight"]
-            vicini.append((n, w))
-        return sorted(vicini, key=lambda x: x[1], reverse=True)
+    def calcolaPeso(self, listaNodi):
+        pesoTotale = 0;
+        for i in range(0, len(listaNodi) - 1):
+            u = listaNodi[i]
+            v = listaNodi[i + 1]
+            pesoTotale += self._graf[u][v]["weight"]
+        return pesoTotale
 
-    def compute_best_path(self, start):
-        """Calcola percorso di peso massimo con archi strettamente decrescenti"""
+
+
+
+
+
+
+
+
+
+    #ricorsione partendo da un nodo start che includa solo nodi connessi con a e che massimizzi il
+    #numero di nodi, il peso complessivo deve essere minore di un peso soglia
+    def _cerca_massimo_cammino(self, durata_max, album_partenza):
+        self._result = [album_partenza]
+        self._durata_reale = 0
+        self.ricorsione([album_partenza], album_partenza.durata, durata_max)
+
+        return self._result, self._durata_reale
+
+
+    def ricorsione(self, risultato_parziale, durata_parziale, durata_max):
+        if durata_parziale > durata_max:
+            return
+        if len(risultato_parziale) > len(self._result):
+            self._result = copy.deepcopy(risultato_parziale)
+            self._durata_reale = copy.deepcopy(durata_parziale)
+            print(self._result)
+            print(self._durata_reale)
+
+        for vicino in self.G.neighbors(risultato_parziale[-1]):
+            print(vicino.title)
+            if vicino in risultato_parziale:
+                continue
+            risultato_parziale.append(vicino)
+            self.ricorsione(risultato_parziale, durata_parziale + vicino.durata, durata_max)
+            risultato_parziale.pop()
+
+
+
+
+
+
+    #ricorsione che cerca percorso con distanza massima con nodi con peso crescente
+    def cerca_percorso(self):
         self.best_path = []
-        self.best_weight = 0
-        self._ricorsione([start], 0, float("inf"))
-        return self.best_path, self.best_weight
+        self.best_distance = 0
+        for node in self._G.nodes:
+            self._ricorsione([node], 0, float("-inf"))
+        return self.best_path, self.best_distance
 
-    def _ricorsione(self, path, weight, last_edge_weight):
+
+    def _ricorsione(self, path, distance, last_edge_weight):
         last = path[-1]
-        if weight > self.best_weight:
-            self.best_weight = weight
+        if distance > self.best_distance:
+            self.best_distance = distance
             self.best_path = path.copy()
 
-        vicini = self.get_neighbors(last)
-        neighbors = []
-        counter = 0
-        for node, edge_w in vicini:
-            if node in path:
-                continue
-            if edge_w <= last_edge_weight:
-                neighbors.append((node, edge_w))
-                counter += 1
-                if counter == self.K:
-                    break
+        vicini = self._G.neighbors(last)
 
-        for node, edge_w in neighbors:
-            path.append(node)
-            self._ricorsione(path, weight + edge_w, edge_w)
-            path.pop()
+        for node in vicini:
+            edge_w = self._G[last][node]['weight']
+            if edge_w > last_edge_weight:
+                path.append(node)
+                d = self.get_distance(last, node)
+                self._ricorsione(path, distance + d, edge_w)
+                path.pop()
+
+
+
+
+
+
+
+    #ricorsione che cerca percorso peso massimo con nodo di partenza, con peso archi decrescente,
+    # visitando solo i primi K nodi adiacenti piu pesanti
+    def get_lista_squadre(self, squadra_partenza):
+        lista_vicini = sorted(self._G.neighbors(squadra_partenza), key=lambda x: x.somma_stipendi, reverse=True)
+        return lista_vicini
+
+
+    def trova_percorso(self, squadra_partenza, K=3):
+        self._result = [squadra_partenza]
+        self._costo_finale = 0
+        self.ricorsione([squadra_partenza], 0, K, float("inf"))
+        return self._result, self._costo_finale
+
+
+    def ricorsione(self, risultato_parziale, costo_parziale, K, peso_ultimo):
+        if costo_parziale > self._costo_finale:
+            self._result = copy.deepcopy(risultato_parziale)
+            self._costo_finale = costo_parziale
+
+        nodo = risultato_parziale[-1]
+
+        candidati = []
+        for vicino in self._G.neighbors(nodo):
+            if vicino not in risultato_parziale:
+                peso = self._G[nodo][vicino]["weight"]
+                if peso < peso_ultimo:
+                    candidati.append((vicino, peso))
+
+        candidati.sort(key=lambda x: x[1], reverse=True)
+        candidati = candidati[:K]
+
+        for vicino, peso in candidati:
+            risultato_parziale.append(vicino)
+            self.ricorsione(risultato_parziale, costo_parziale + peso, K, peso)
+            risultato_parziale.pop()
